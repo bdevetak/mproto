@@ -1,2 +1,5 @@
 # mproto
-Perl Moose object from protocol buffers
+Perl Moose objects from protocol buffers
+
+# status
+Experimental hacks
