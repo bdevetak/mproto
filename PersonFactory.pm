@@ -3,6 +3,8 @@ package PersonFactory;
 use strict;
 use warnings;
 
+use Data::Structure::Util qw(unbless);
+
 use Person;
 use Google::ProtocolBuffers::Dynamic;
 
@@ -75,6 +77,26 @@ sub moose_from_proto {
     my $personObject = Person->new(@params);
 
     return $personObject;    
+}
+
+sub moose_to_proto {
+    my $self         = shift; # Factory object
+    my $moose_object = shift; # Moose object
+
+    my $hash = unbless $moose_object;
+
+    my $bytes = $self->hash_to_proto($hash)
+}
+
+sub hash_to_proto {
+    my $self = shift; # Factory object
+    my $hash = shift;
+    
+    my $class = 'Messages::' . $self->{moose_class};
+
+    my $proto_object = $class->new($hash); 
+    my $bytes  = $class->encode($proto_object);
+    return $bytes;
 }
 
 # proto_schema
