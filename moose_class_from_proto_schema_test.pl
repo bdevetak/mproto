@@ -63,13 +63,13 @@ my $proto_message_name = lc($moose_class_name) . "proto";
 #my $proto_string = generate_proto_string_from_moose_object();
 my $proto_string = get_test_message_2();
 
-print $proto_string;
+say "proto string => " .  $proto_string;
 
 my ($parsedPackageDef) = Google::ProtocolBuffers::Compiler->parse({ text => $proto_string });
 
 my $parsedMessageDef;
+my @mooseClassesDefinitions = ();
 for my $message_name (keys %$parsedPackageDef) {
-    say $message_name;    
 
     $parsedMessageDef = $parsedPackageDef->{$message_name};
 
@@ -91,26 +91,72 @@ for my $message_name (keys %$parsedPackageDef) {
         @{$parsedMessageDef->{fields}};
 
         my $mooseClassDef;
+        $mooseClassDef->{package_name} = ucfirst(join('::',split("\\.",$message_name)));
         map
         {
             push @{$mooseClassDef->{attributes}}, {
                 name => $_->[2]->{field_name},
                 isa  => (
                     ($_->[1]->{field_type}=~/m[a-zA-Z]/g)
-                        ? join('::',split("\\.",$_->[1]->{field_type}))
+                        ? ucfirst(join('::',split("\\.",$_->[1]->{field_type})))
                         : $proto_to_moose_type_map{$_->[1]->{field_type}}
                 ),
+                presence => $_->[0]->{required},
+                default  => $_->[4]->{default_value},
             }
         }
         @{$parsedMessageDef->{fields}};
 
-        say "Moose class def => " . Dumper($mooseClassDef);
-
+        push @mooseClassesDefinitions, $mooseClassDef;
     }
+    elsif ($parsedMessageDef->{kind} eq 'enum') {
 
-    say "parsed message $message_name => " . Dumper($parsedMessageDef);
+        map
+        {
+            ($_->[0] = { enum_value    => $_->[0]                   })
+            &&
+            ($_->[1] = { value_id      => $_->[1]                   })
+            
+        }
+        @{$parsedMessageDef->{fields}};
+        
+        my $mooseClassDef;
+        $mooseClassDef->{package_name} = ucfirst(join('::',split("\\.",$message_name)));
+        map
+        {
+            push @{$mooseClassDef->{enum_items}}, {
+                enum_value => $_->[0]->{enum_value},
+                value_id   => $_->[1]->{value_id},
+            }
+        }
+        @{$parsedMessageDef->{fields}};
 
+        # enum 'My:Enum:Task', [qw(profit world_domination)];
+        # has task => ( isa => 'My:Enum:Task' );
+
+        $mooseClassDef->{create_as} = '
+        use Moose::Util::TypeConstraints;
+        enum ' .
+            "'" .
+            $mooseClassDef->{package_name} .
+            "' , [qw(" .
+            join(" ", map { $_->{enum_value} } @{$mooseClassDef->{enum_items}} ) .
+            ")];"
+        ;
+
+        push @mooseClassesDefinitions, $mooseClassDef;
+    }
+    else {
+        die "Unsupported type " . $parsedMessageDef->{kind};
+    }
 }
+
+#TODO:
+# 1. establish the order of dependecies
+# 2. create Moose classes:
+#       a. enums and packages by evals
+#       b. attributes by meta
+print Dumper(\@mooseClassesDefinitions);
 
 #####################################################
 # Serializer:
