@@ -42,26 +42,31 @@ my $moose_class_name = "Person";
 my $proto_message_name = lc($moose_class_name) . "proto";
 
 #my $proto_string = generate_proto_string_from_moose_object();
-my $proto_string = get_test_message();
+my $proto_string = get_test_message_2();
 
 print $proto_string;
 
-my @x = Google::ProtocolBuffers::Compiler->parse({ text => $proto_string });
+my ($parsedPackageDef) = Google::ProtocolBuffers::Compiler->parse({ text => $proto_string });
 
-my $parsedMessageDef = $x[0];
+my $parsedMessageDef;
+for my $message_name (keys %$parsedPackageDef) {
+    say $message_name;    
 
-map {
-    push @{$parsedMessageDef->{'humans.Person'}->{readable}}, +{
-        required   => $label_codes{$_->[0]},
-        field_type => $primitive_codes{$_->[1]},
-        field_name => $_->[2],
-        field_id   => $_->[3],
-        unknown_1  => $_->[4],
-        unknown_2  => $_->[5],
-    }
-} @{$parsedMessageDef->{'humans.Person'}->{fields}};
+    $parsedMessageDef = $parsedPackageDef->{$message_name};
 
-say "parsed proto schema => " . Dumper($parsedMessageDef);
+    map {
+        push @{$parsedMessageDef->{readable}}, [
+            { required   => $label_codes{$_->[0]}     },
+            { field_type => $primitive_codes{$_->[1]} },
+            { field_name => $_->[2]                   },
+            { field_id   => $_->[3]                   },
+            { unknown_1  => $_->[4]                   },
+        ]
+    } @{$parsedMessageDef->{fields}};
+
+    say "parsed message $message_name => " . Dumper($parsedMessageDef);
+
+}
 
 #####################################################
 # Serializer:
@@ -174,4 +179,34 @@ sub get_test_message {
 
 |;
 
+}
+
+sub get_test_message_2 {
+
+    return q|
+        
+        syntax = "proto2";
+         
+        package humans;
+
+        message Person {
+          required string name = 1;
+          required int32 id = 2;
+          optional string email = 3;
+
+          enum PhoneType {
+            MOBILE = 0;
+            HOME = 1;
+            WORK = 2;
+          }
+
+          message PhoneNumber {
+            required string number = 1;
+            optional PhoneType type = 2 [default = HOME];
+          }
+
+          repeated PhoneNumber phone = 4;
+        }
+    
+    |;
 }

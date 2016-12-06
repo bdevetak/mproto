@@ -3,14 +3,37 @@ package PersonFactory;
 use strict;
 use warnings;
 
-use Data::Structure::Util qw(unbless);
+BEGIN {
+    eval {
+        package Person;
+        use Moose;
+        1;
+    }    
+}
 
 use Person;
+use Data::Structure::Util qw(unbless);
 use Google::ProtocolBuffers::Dynamic;
 
 use constant PRODUCES_TYPE => "Person";
 use constant PROTO_PACKAGE => "Messages";
-    
+
+sub _get_proto_schema {
+    my $schema = <<PROTO
+syntax = "proto2";
+
+package humans;
+
+message Person{
+    required string name = 1;
+    required int32 id = 2;
+    optional string email = 3;
+}
+PROTO
+    return  $schema;
+}
+
+# This is if we allready have a Moose class    
 sub new {
 
     my $CLASS_NAME = PRODUCES_TYPE;
@@ -42,6 +65,39 @@ sub new {
     };    
 }
 
+# this is if we have a proto schema. In this case this will
+# return a factory that can generate Moose objects from that
+# schema and econde tham back to protobuf with that schema
+sub new_factory_from_proto {
+
+    my $CLASS_NAME = PRODUCES_TYPE;
+
+    my $proto_message_name = lc($CLASS_NAME) . "proto";
+
+    my $proto_schema = _get_proto_schema();
+
+    my $dynamic = Google::ProtocolBuffers::Dynamic->new();
+
+    $dynamic->load_string(
+        $proto_message_name,
+        $proto_schema
+    );
+
+    $dynamic->map({
+        package => 'messages', prefix => ucfirst('messages')
+    });
+
+    _setup_moose_class_attributes_from_proto_schema('Person', $proto_schema);
+
+    return bless {
+        description      => "Factory for Moose class Person",
+        dynamic          => $dynamic,
+        moose_class      => "Person",
+        proto_package    => PROTO_PACKAGE,
+        proto_schema     => $proto_schema, 
+    };    
+}
+
 # serialize Person object to protobuf message
 sub moose_to_proto {
     my $self = shift; 
@@ -49,7 +105,7 @@ sub moose_to_proto {
 
 # create Person from protobuf message
 sub moose_from_proto {
-    my $self = shift;
+        my $self = shift;
     my $protobuf_message = shift;
 
     my $class = 'Messages::' . $self->{moose_class};
@@ -166,6 +222,33 @@ sub _get_attribute_description {
     }
  
     return \@att;
+}
+
+sub _setup_moose_class_attributes_from_proto_message {
+    my $message_name = shift;
+    my $proto_schema = shift;
+
+    
+    my $moose_class = $self->{moose_class};
+    my $meta = $moose_class->meta;
+
+    $meta->add_attribute(name => (
+        is => 'ro',
+        isa => 'Str',
+        required => 1,
+    ));
+
+    $meta->add_attribute(id => (
+        is => 'ro',
+        isa => 'Int',
+        required => 1,
+    ));
+
+    $meta->add_attribute(email => (
+        is => 'rw',
+        isa => 'Str',
+        required => 0,
+    ));
 }
 
 1;
