@@ -54,16 +54,24 @@ for my $message_name (keys %$parsedPackageDef) {
 
     $parsedMessageDef = $parsedPackageDef->{$message_name};
 
-    map {
-        push @{$parsedMessageDef->{readable}}, [
-            { required   => $label_codes{$_->[0]}     },
-            { field_type => $primitive_codes{$_->[1]} },
-            { field_name => $_->[2]                   },
-            { field_id   => $_->[3]                   },
-            { unknown_1  => $_->[4]                   },
-        ]
-    } @{$parsedMessageDef->{fields}};
+    if ($parsedMessageDef->{kind} eq 'message') {
 
+        # replace codes with meaningull strings
+        map
+        {
+                ($_->[0] = [$_->[0], { required      => $label_codes{$_->[0]}     }])
+                &&
+                ($_->[1] = [$_->[1], { field_type    => ($_->[1]=~m/[a-zA-z]/g ? $_->[1] : $primitive_codes{$_->[1]}) }])
+                &&
+                ($_->[2] = [$_->[2], { field_name    => $_->[2]                   }])
+                &&
+                ($_->[3] = [$_->[3], { field_id      => $_->[3]                   }])
+                &&
+                ($_->[4] = [$_->[4], { default_value => $_->[4]                   }])
+        }
+        @{$parsedMessageDef->{fields}};
+
+    }
     say "parsed message $message_name => " . Dumper($parsedMessageDef);
 
 }
