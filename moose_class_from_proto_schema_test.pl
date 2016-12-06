@@ -27,6 +27,25 @@ my %primitive_types = (
     "bytes"     => TYPE_BYTES,
 );
 
+# TODO: make proper Moose subtypes so there is a more precise mapping
+my %proto_to_moose_type_map = (
+    "double"    => 'Num',
+    "float"     => 'Num',
+    "int32"     => 'Int',
+    "int64"     => 'Int',
+    "uint32"    => 'Int',
+    "uint64"    => 'Int',
+    "sint32"    => 'Int',
+    "sint64"    => 'Int',
+    "fixed32"   => 'Int',
+    "fixed64"   => 'Int',
+    "sfixed32"  => 'Int',
+    "sfixed64"  => 'Int',
+    "bool"      => 'Bool',
+    "string"    => 'Str',
+    "bytes"     => 'Str',
+);
+
 # TODO: extend this with mapping to Moose types
 my %primitive_codes = map { $primitive_types{$_} => $_ } keys %primitive_types;
 
@@ -56,22 +75,39 @@ for my $message_name (keys %$parsedPackageDef) {
 
     if ($parsedMessageDef->{kind} eq 'message') {
 
-        # replace codes with meaningull strings
+        # replace codes with meaningfull strings
         map
         {
-                ($_->[0] = [$_->[0], { required      => $label_codes{$_->[0]}     }])
+                ($_->[0] = { required      => $label_codes{$_->[0]}     })
                 &&
-                ($_->[1] = [$_->[1], { field_type    => ($_->[1]=~m/[a-zA-z]/g ? $_->[1] : $primitive_codes{$_->[1]}) }])
+                ($_->[1] = { field_type    => ($_->[1]=~m/[a-zA-z]/g ? $_->[1] : $primitive_codes{$_->[1]}) })
                 &&
-                ($_->[2] = [$_->[2], { field_name    => $_->[2]                   }])
+                ($_->[2] = { field_name    => $_->[2]                   })
                 &&
-                ($_->[3] = [$_->[3], { field_id      => $_->[3]                   }])
+                ($_->[3] = { field_id      => $_->[3]                   })
                 &&
-                ($_->[4] = [$_->[4], { default_value => $_->[4]                   }])
+                ($_->[4] = { default_value => $_->[4]                   })
         }
         @{$parsedMessageDef->{fields}};
 
+        my $mooseClassDef;
+        map
+        {
+            push @{$mooseClassDef->{attributes}}, {
+                name => $_->[2]->{field_name},
+                isa  => (
+                    ($_->[1]->{field_type}=~/m[a-zA-Z]/g)
+                        ? join('::',split("\\.",$_->[1]->{field_type}))
+                        : $proto_to_moose_type_map{$_->[1]->{field_type}}
+                ),
+            }
+        }
+        @{$parsedMessageDef->{fields}};
+
+        say "Moose class def => " . Dumper($mooseClassDef);
+
     }
+
     say "parsed message $message_name => " . Dumper($parsedMessageDef);
 
 }
