@@ -2,6 +2,8 @@ package Person;
 
 use Moose;
 
+extends 'ProtobufCompatibleClass';
+
 has 'name' => (
     is => 'ro',
     isa => 'Str',
@@ -10,7 +12,7 @@ has 'name' => (
 
 has 'id' => (
     is => 'ro',
-    isa => "Int",
+    isa => "UInt",
     required => 1,
 );
 
